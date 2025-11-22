@@ -2,8 +2,9 @@ import numpy as np
 
 class DifferentialEvolutionOptimizer:
     """
-    差分进化算法基类
+    差分进化算法基类 (Base Class)
     封装了通用的初始化、边界检查和适应度评估逻辑。
+    所有具体的 DE 变体算法都应该继承这个类。
     """
     def __init__(self, obj_func, bounds, pop_size=20, iterations=1000):
         self.obj_func = obj_func
@@ -34,5 +35,5 @@ class DifferentialEvolutionOptimizer:
         return np.clip(mutant, self.min_bound, self.max_bound)
 
     def run(self):
-        """主循环，由子类具体实现"""
+        """主循环接口，由子类具体实现"""
         raise NotImplementedError("Subclasses should implement this!")

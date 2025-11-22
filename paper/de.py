@@ -1,5 +1,5 @@
 import numpy as np
-from paper.base import DifferentialEvolutionOptimizer 
+from paper.base import DifferentialEvolutionOptimizer
 from functions import fun_sphere
 
 class DE(DifferentialEvolutionOptimizer):
@@ -41,8 +41,17 @@ class DE(DifferentialEvolutionOptimizer):
             # 每次迭代返回当前最优解
             yield self.best_vector, self.fitness[self.best_index]
 
-# 简单的测试代码
-if __name__ == '__main__':
-    optimizer = DE(fun_sphere, [(-100, 100)] * 30)
+# 为了保持兼容性，保留之前的测试函数，但内部改为使用类
+def de_rand_1_test(fun=None, bounds=None, mut=0.9, cr=0.1, pop_size=100, iterations=1000):
+    if fun is None:
+        fun = fun_sphere
+    if bounds is None:
+        bounds = [(-100, 100)] * 30
+    
+    # 实例化我们新写的类
+    optimizer = DE(fun, bounds, mut, cr, pop_size, iterations)
     it = list(optimizer.run())
-    print(f"Optimum: {it[-1][1]}")
+    print(it[-1][1])
+
+if __name__ == '__main__':
+    de_rand_1_test()
