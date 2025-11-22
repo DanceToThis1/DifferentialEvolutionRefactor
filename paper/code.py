@@ -1,9 +1,5 @@
-from paper.sade import *
 import matplotlib.pyplot as plt
 import os
-
-path1 = os.path.abspath('.')
-path2 = os.path.abspath('..')
 
 """
 变异向量越界有新的处理方式还没加

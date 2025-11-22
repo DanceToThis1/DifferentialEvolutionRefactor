@@ -4,15 +4,15 @@ from functions import fun_sphere
 """
 实现标准差分进化算法。
 dimensions为问题的维度
-pop 为二维数组，popsize行，dimensions列。范围在0-1
-min_b,max_b为各维度的上界和下界数组
+pop 为二维数组，pop_size行，dimensions列。范围在0-1
+min_bound, max_bound为各维度的上界和下界数组
 population为映射到全部取值范围的二维种群数组
 fitness为每个向量的适应值数组
-best_idx为当前最佳向量在种群中的位置
+best_index为当前最佳向量在种群中的位置
 best为当前最佳向量
 
 进入迭代后：
-idxs为除去目标向量序列号的列表。
+indexes为除去目标向量序列号的列表。
 a,b,c为选择的三个随机向量
 mutant为变异向量
 cross_points为随机生成的bool向量，长度与问题维度相同。
@@ -29,20 +29,20 @@ yield:类似return。
 """
 
 
-def de(fobj, bounds, mut=0.9, cr=0.1, popsize=20, its=1000):
+def de(fobj, bounds, mut=0.9, cr=0.1, pop_size=20, iterations=1000):
     dimensions = len(bounds)
-    pop = np.random.rand(popsize, dimensions)
-    min_b, max_b = np.asarray(bounds).T
-    diff = np.fabs(min_b - max_b)
-    population = min_b + pop * diff
+    pop = np.random.rand(pop_size, dimensions)
+    min_bound, max_bound = np.asarray(bounds).T
+    diff = np.fabs(min_bound - max_bound)
+    population = min_bound + pop * diff
     fitness = np.asarray([fobj(ind) for ind in population])
-    best_idx = np.argmin(fitness)
-    best = population[best_idx]
-    for i in range(its):
-        for j in range(popsize):
-            idxs = [idx for idx in range(popsize) if idx != j]
-            a, b, c = population[np.random.choice(idxs, 3, replace=False)]
-            mutant = np.clip(a + mut * (b - c), min_b, max_b)
+    best_index = np.argmin(fitness)
+    best = population[best_index]
+    for i in range(iterations):
+        for j in range(pop_size):
+            indexes = [index for index in range(pop_size) if index != j]
+            a, b, c = population[np.random.choice(indexes, 3, replace=False)]
+            mutant = np.clip(a + mut * (b - c), min_bound, max_bound)
             cross_points = np.random.rand(dimensions) < cr
             if not np.any(cross_points):
                 cross_points[np.random.randint(0, dimensions)] = True
@@ -51,11 +51,10 @@ def de(fobj, bounds, mut=0.9, cr=0.1, popsize=20, its=1000):
             if f < fitness[j]:
                 fitness[j] = f
                 population[j] = trial
-                if f < fitness[best_idx]:
-                    best_idx = j
+                if f < fitness[best_index]:
+                    best_index = j
                     best = trial
-        yield best, fitness[best_idx]
-    pass
+        yield best, fitness[best_index]
 
 
 """
@@ -64,21 +63,18 @@ def de(fobj, bounds, mut=0.9, cr=0.1, popsize=20, its=1000):
 @:parameter bounds:评价函数每个维度的限定搜索范围，如[(-100, 100)] * 30
 @:parameter mut: 即缩放因子参数F，由于F容易冲突所以改为mut。
 @:parameter cr: 交叉概率
-@:parameter popsize: 即种群大小NP
-@:parameter its: 迭代次数，对于已知全局最优解的函数也可以设置为差异足够小时停止。
+@:parameter pop_size: 即种群大小NP (变量重命名)
+@:parameter iterations: 迭代次数 (变量重命名)
 @:return 由于采用yield，所以需要再加一层list。返回一个列表，列表中包含两项，第一项为每次迭代中种群的最优向量，第二项为每次迭代最优向量对应的适应值。
 """
-
-
-def de_rand_1_test(fun=None, bounds=None, mut=0.9, cr=0.1, popsize=100, its=1000):
+def de_rand_1_test(fun=None, bounds=None, mut=0.9, cr=0.1, pop_size=100, iterations=1000):
     if fun is None:
         fun = fun_sphere
     if bounds is None:
         bounds = [(-100, 100)] * 30
-    it = list(de(fun, bounds, mut, cr, popsize=popsize, its=its))
+    it = list(de(fun, bounds, mut, cr, pop_size=pop_size, iterations=iterations))
     print(it[-1])
-    pass
-
+    
 
 # de_rand_1_test()
 """

@@ -5,9 +5,6 @@ from scipy.stats import cauchy
 import pandas as pd
 import os
 
-path1 = os.path.abspath('.')
-path2 = os.path.abspath('..')
-
 """
 jade函数,实现JADE算法
 输入为待优化函数和相应的维度，每个维度的取值范围。
@@ -25,7 +22,6 @@ def jade(fobj, bounds, popsize=100, its=1000, c=0.1):
     population_new = np.zeros(popsize * dimensions).reshape(popsize, dimensions)
     for i in range(len(population_new)):
         population_new[i] = population[i]
-        pass
     mean_cr = 0.5
     mean_mut = 0.5
     a = []  # 定义一个新种群A初始化为空
@@ -80,7 +76,6 @@ def jade(fobj, bounds, popsize=100, its=1000, c=0.1):
             pass
         for k in range(len(population)):
             population[k] = population_new[k]
-            pass
         if s_cr:
             mean_cr = (1 - c) * mean_cr + c * np.mean(s_cr)
             mean_mut = (1 - c) * mean_mut + c * (sum(ff ** 2 for ff in s_mut) / sum(s_mut))
