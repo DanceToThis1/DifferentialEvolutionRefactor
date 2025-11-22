@@ -1,0 +1,17 @@
+# IDE / OS Files
+.idea/
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv
+venv/
+.env
+
+# Test Data and Logs
+*.csv
+*.log
+
+# Generated Images
+image/
