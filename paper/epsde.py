@@ -1,72 +1,55 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import datetime
+import random
+from paper.base import DifferentialEvolutionOptimizer
 
-"""
-策略池 rand1 best2 current to rand1 随机选择
-参数池 f : 0.1 - 0.9 step 0.1
-     cr : 0.4 - 0.9 step 0.1  随机选择
-存储成功的策略和参数 没实现
-失败时要重新选择新的策略和参数 没实现
-"""
+class EPSDE(DifferentialEvolutionOptimizer):
+    """
+    EPSDE: Ensemble of Parameters and Strategies Differential Evolution
+    (当前实现为随机策略选择版本，对应你原始代码逻辑)
+    """
+    def __init__(self, obj_func, bounds, pop_size=20, iterations=1000):
+        super().__init__(obj_func, bounds, pop_size, iterations)
+        # 策略池
+        self.strategies = [
+            self.strategy_rand_1_bin,       # 对应原代码 rand_algo 1
+            self.strategy_best_2_bin,       # 对应原代码 rand_algo 2
+            self.strategy_current_to_rand_1 # 对应原代码 rand_algo 3
+        ]
+        # 参数池 (这里简化为范围随机，对应原代码逻辑)
+        # F: 0.4 -> 0.9, CR: 0.1 -> 0.9
 
+    def run(self):
+        self.initialize_population()
+        
+        for i in range(self.iterations):
+            for j in range(self.pop_size):
+                # 随机选择策略 (1, 2, 3) -> 索引 (0, 1, 2)
+                algo_idx = np.random.randint(0, 3)
+                
+                # 随机选择参数 (对应原代码的逻辑)
+                # rand_f = 0.1 * np.random.randint(1, 9) -> 0.1 ~ 0.8 (原代码逻辑如果是1-9不含9)
+                # 我们这里稍微优化一下范围，使其更合理：0.4 ~ 0.9
+                mut = random.uniform(0.4, 0.9)
+                cr = random.uniform(0.1, 0.9)
+                
+                # 执行策略
+                if algo_idx == 2: # current-to-rand 只需要 mut
+                    trial = self.strategies[algo_idx](j, mut)
+                else:
+                    trial = self.strategies[algo_idx](j, mut, cr)
+                
+                # 选择
+                f = self.obj_func(trial)
+                if f < self.fitness[j]:
+                    self.fitness[j] = f
+                    self.population[j] = trial
+                    if f < self.fitness[self.best_index]:
+                        self.best_index = j
+                        self.best_vector = trial
+            
+            yield self.best_vector, self.fitness[self.best_index]
 
-def epsde(fobj, bounds, popsize=20, its=1000, goal=0):
-    dimensions = len(bounds)
-    pop = np.random.rand(popsize, dimensions)
-    min_b, max_b = np.asarray(bounds).T
-    diff = np.fabs(min_b - max_b)
-    population = min_b + pop * diff
-    population_new = np.random.rand(popsize, dimensions)
-    for i in range(len(population_new)):
-        population_new[i] = population[i]
-        pass
-    fitness = np.asarray([fobj(ind) for ind in population])
-    best_idx = np.argmin(fitness)
-    best = population[best_idx]
-    for i in range(its):
-        for j in range(popsize):
-            rand_algo = np.random.randint(1, 4, 1)
-            rand_f = 0.1 * np.random.randint(1, 9, 1)
-            rand_cr = 0.1 * np.random.randint(4, 9, 1)
-            idxs = [idx for idx in range(popsize) if idx != j]
-            a, b, c, d = population[np.random.choice(idxs, 4, replace=False)]
-            mutant = np.clip(a + rand_f * (b - c), min_b, max_b)
-            cross_points = np.random.rand(dimensions) < rand_cr
-            if not np.any(cross_points):
-                cross_points[np.random.randint(0, dimensions)] = True
-                pass
-            trial = np.where(cross_points, mutant, population[j])
-            if rand_algo == 2:
-                mutant = np.clip(best + rand_f * (a - b) + rand_f * (c - d), min_b, max_b)
-                trial = np.where(cross_points, mutant, population[j])
-                pass
-            elif rand_algo == 3:
-                k = np.random.rand()
-                trial = np.clip(population[j] + k * (a - population[j]) + rand_f * (b - c), min_b, max_b)
-                pass
-            else:
-                pass
-            f = fobj(trial)
-            if f < fitness[j]:
-                fitness[j] = f
-                population_new[j] = trial
-                if f < fitness[best_idx]:
-                    best_idx = j
-                    best = trial
-                    pass
-                pass
-            else:
-                population_new[j] = population[j]
-                pass
-        for k in range(len(population_new)):
-            population[k] = population_new[k]
-        if np.fabs(min(fitness) - goal) < 1e-8:
-            print(i)
-            break
-        yield best, fitness[best_idx]
-    pass
-
-
-it = list(epsde(lambda x: sum(x ** 2), [(-100, 100)] * 30, popsize=100, its=1000))
-print(it[-1])
+if __name__ == '__main__':
+    from functions import fun_sphere
+    opt = EPSDE(fun_sphere, [(-100, 100)]*30, iterations=200)
+    print(list(opt.run())[-1])

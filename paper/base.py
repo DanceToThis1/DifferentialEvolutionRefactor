@@ -135,6 +135,20 @@ class DifferentialEvolutionOptimizer:
             
         return np.where(cross_points, mutant, target)
 
-
+    def strategy_best_2_bin(self, target_idx, mut, cr):
+        """策略: DE/best/2/bin"""
+        indexes = [i for i in range(self.pop_size) if i != target_idx]
+        a, b, c, d = self.population[np.random.choice(indexes, 4, replace=False)]
+        
+        # 基向量是全局最优 best_vector
+        mutant = self.best_vector + mut * (a - b) + mut * (c - d)
+        mutant = self.check_bounds(mutant)
+        
+        cross_points = np.random.rand(self.dimensions) < cr
+        if not np.any(cross_points):
+            cross_points[np.random.randint(0, self.dimensions)] = True
+            
+        return np.where(cross_points, mutant, self.population[target_idx])
+    
     def run(self):
         raise NotImplementedError("Subclasses should implement this!")

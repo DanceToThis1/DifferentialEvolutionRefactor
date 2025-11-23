@@ -1,87 +1,57 @@
-import matplotlib.pyplot as plt
-import os
+import numpy as np
+from paper.base import DifferentialEvolutionOptimizer
 
-"""
-变异向量越界有新的处理方式还没加
-不确定迭代次数的设计是否有问题。
-"""
+class CoDE(DifferentialEvolutionOptimizer):
+    """
+    CoDE: Composite Differential Evolution
+    每次产生 3 个试验向量，选择其中最好的一个与目标向量竞争。
+    """
+    def __init__(self, obj_func, bounds, pop_size=20, iterations=1000):
+        super().__init__(obj_func, bounds, pop_size, iterations)
 
+    def run(self):
+        self.initialize_population()
+        
+        for i in range(self.iterations):
+            for j in range(self.pop_size):
+                # CoDE 的核心：生成三个候选向量 (trial vectors)
+                
+                # 候选 1: rand/1/bin, F=1.0, Cr=0.1
+                v1 = self.strategy_rand_1_bin(j, mut=1.0, cr=0.1)
+                f1 = self.obj_func(v1)
+                
+                # 候选 2: rand/2/bin, F=1.0, Cr=0.9
+                v2 = self.strategy_rand_2_bin(j, mut=1.0, cr=0.9)
+                f2 = self.obj_func(v2)
+                
+                # 候选 3: current-to-rand/1, F=0.8, Cr=0.2 (策略里无显式 Cr，但作为参数传递保持一致性)
+                v3 = self.strategy_current_to_rand_1(j, mut=0.8)
+                f3 = self.obj_func(v3)
+                
+                # 在三个候选中选最好的
+                candidates_f = [f1, f2, f3]
+                candidates_v = [v1, v2, v3]
+                best_trial_idx = np.argmin(candidates_f)
+                
+                trial = candidates_v[best_trial_idx]
+                f_trial = candidates_f[best_trial_idx]
+                
+                # 与父代竞争
+                if f_trial < self.fitness[j]:
+                    self.fitness[j] = f_trial
+                    self.population[j] = trial
+                    if f_trial < self.fitness[self.best_index]:
+                        self.best_index = j
+                        self.best_vector = trial
+            
+            yield self.best_vector, self.fitness[self.best_index]
 
-def code(fobj, bounds, popsize=20, its=2000):
-    dimensions = len(bounds)
-    pop = np.random.rand(popsize, dimensions)
-    min_b, max_b = np.asarray(bounds).T
-    diff = np.fabs(min_b - max_b)
-    population = min_b + pop * diff
-    population_new = np.random.rand(popsize, dimensions)
-    for i in range(len(population_new)):
-        population_new[i] = population[i]
-        pass
-    fitness = np.asarray([fobj(ind) for ind in population])
-    best_idx = np.argmin(fitness)
-    best = population[best_idx]
-    param_dic = {
-        1: [1.0, 0.1],
-        2: [1.0, 0.9],
-        3: [0.8, 0.2]
-    }
-    # its = FES / 3
-    for i in range(popsize, its * 3, 3):
-        for j in range(popsize):
-            popj = population[j]
-            idxs = [idx for idx in range(popsize) if idx != j]
-            a, b, c, d, e = population[np.random.choice(idxs, 5, replace=False)]
-            rand_1, rand_2, current_1 = np.random.randint(1, 4, 3)
-            trial_rand1 = rand_1_bin(a, b, c, param_dic[rand_1][0], min_b, max_b, popj, dimensions,
-                                     param_dic[rand_1][1])
-            trial_rand2 = rand_2_bin(a, b, c, d, e, param_dic[rand_2][0], min_b, max_b, popj, dimensions,
-                                     param_dic[rand_2][1])
-            trial_current = current_to_rand_1(a, b, c, popj, param_dic[current_1][0], min_b, max_b)
-            fit = [fobj(trial_rand1), fobj(trial_rand2), fobj(trial_current)]
-            b_index = np.argmin(fit)
-            best_trial = [trial_rand1, trial_rand2, trial_current][b_index]
-            f = fit[b_index]
-            if f < fitness[j]:
-                fitness[j] = f
-                population_new[j] = best_trial
-                if f < fitness[best_idx]:
-                    best_idx = j
-                    best = best_trial
-                    pass
-                pass
-            else:
-                population_new[j] = population[j]
-                pass
-            pass
-        for k in range(len(population_new)):
-            population[k] = population_new[k]
-        yield best, fitness[best_idx]
-    pass
-
-
-def code_test(fun, bounds, its=3000, log=0):
-    it = list(code(fun, bounds, popsize=100, its=its))
-    print(it[-1])
-    x, f = zip(*it)
-    plt.plot(f, label='code')
-    if log == 1:
-        plt.yscale('log')
-    plt.legend()
-    plt.show()
-    pass
-
-
-def code_test_50(fun, bounds, its):
+# 保持接口兼容
+def code_test_50(fun, bounds, iterations):
     result = []
     for num in range(50):
-        it = list(code(fun, bounds, popsize=100, its=its))
+        optimizer = CoDE(fun, bounds, pop_size=30, iterations=iterations) # CoDE通常pop_size不用太大
+        it = list(optimizer.run())
         result.append(it[-1][-1])
         print(num, result[-1])
-        pass
-    data = pd.DataFrame([['CODE', fun.__name__, its, i] for i in result])
-    data.to_csv(path1 + '/all_algorithm_test_data/data.csv', mode='a', header=False)
-    mean_result = np.mean(result)
-    std_result = np.std(result)
-    data_mean = pd.DataFrame([['CODE', fun.__name__, its, mean_result, std_result]])
-    data_mean.to_csv(path1 + '/all_algorithm_test_data/data.csv', mode='a', index=False, header=False)
-    pass
+    print(f"Mean: {np.mean(result)}")
