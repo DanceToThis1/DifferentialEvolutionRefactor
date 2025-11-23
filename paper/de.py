@@ -17,19 +17,8 @@ class DE(DifferentialEvolutionOptimizer):
         
         for i in range(self.iterations):
             for j in range(self.pop_size):
-                # 1. 变异 (Mutation)
-                indexes = [index for index in range(self.pop_size) if index != j]
-                a, b, c = self.population[np.random.choice(indexes, 3, replace=False)]
-                mutant = a + self.mut * (b - c)
-                mutant = self.check_bounds(mutant)
+                trial = self.strategy_rand_1_bin(j, self.mut, self.cr)
                 
-                # 2. 交叉 (Crossover)
-                cross_points = np.random.rand(self.dimensions) < self.cr
-                if not np.any(cross_points):
-                    cross_points[np.random.randint(0, self.dimensions)] = True
-                trial = np.where(cross_points, mutant, self.population[j])
-                
-                # 3. 选择 (Selection)
                 f = self.obj_func(trial)
                 if f < self.fitness[j]:
                     self.fitness[j] = f
