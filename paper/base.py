@@ -27,9 +27,25 @@ class DifferentialEvolutionOptimizer:
         self.best_index = np.argmin(self.fitness)
         self.best_vector = self.population[self.best_index]
 
-    def check_bounds(self, mutant):
+    def check_bounds_old(self, mutant):
         return np.clip(mutant, self.min_bound, self.max_bound)
-
+    
+    def check_bounds(self, mutant):
+        """
+        边界处理：使用反射法 (Reflection)
+        如果越界，向反方向反射回去，避免堆积在边界。
+        """
+        # 下界处理
+        lower_mask = mutant < self.min_bound
+        mutant[lower_mask] = 2 * self.min_bound[lower_mask] - mutant[lower_mask]
+        
+        # 上界处理
+        upper_mask = mutant > self.max_bound
+        mutant[upper_mask] = 2 * self.max_bound[upper_mask] - mutant[upper_mask]
+        
+        # 如果反射后还越界（极少数情况，步长太大），再做一次截断作为保底
+        return np.clip(mutant, self.min_bound, self.max_bound)
+    
     # --- 通用变异与交叉策略 (Strategies) ---
 
     def strategy_rand_1_bin(self, target_idx, mut, cr):
