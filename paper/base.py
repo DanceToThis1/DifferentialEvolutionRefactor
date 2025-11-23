@@ -87,5 +87,54 @@ class DifferentialEvolutionOptimizer:
         trial = target + k * (a - target) + mut * (b - c)
         return self.check_bounds(trial)
 
+    def strategy_current_to_pbest_1_bin_with_archive(self, target_idx, x_pbest, mut, cr, archive=None):
+        """
+        策略: DE/current-to-pbest/1/bin (带存档支持)
+        公式: v = x_current + F * (x_pbest - x_current) + F * (x_r1 - x_r2)
+        注意: x_r2 可以从 (当前种群 + 存档) 的并集中选择
+        """
+        target = self.population[target_idx]
+        pop_len = self.pop_size
+        
+        # 1. 选择 r1 (不能是自己)
+        r1 = np.random.randint(0, pop_len)
+        while r1 == target_idx:
+            r1 = np.random.randint(0, pop_len)
+        x_r1 = self.population[r1]
+        
+        # 2. 选择 r2 (从 种群 U 存档 中选择，且不能是自己或 r1)
+        if archive is not None and len(archive) > 0:
+            archive_len = len(archive)
+            total_len = pop_len + archive_len
+            
+            r2 = np.random.randint(0, total_len)
+            # 如果 r2 对应的个体是自己或 r1，重选
+            # (注意：这里简化了判断，严格来说需要判断向量内容是否相等，但索引判断效率更高)
+            while r2 == target_idx or r2 == r1:
+                r2 = np.random.randint(0, total_len)
+            
+            if r2 < pop_len:
+                x_r2 = self.population[r2]
+            else:
+                x_r2 = archive[r2 - pop_len]
+        else:
+            # 没有存档时的逻辑
+            r2 = np.random.randint(0, pop_len)
+            while r2 == target_idx or r2 == r1:
+                r2 = np.random.randint(0, pop_len)
+            x_r2 = self.population[r2]
+            
+        # 3. 变异计算
+        mutant = target + mut * (x_pbest - target) + mut * (x_r1 - x_r2)
+        mutant = self.check_bounds(mutant)
+        
+        # 4. 交叉
+        cross_points = np.random.rand(self.dimensions) < cr
+        if not np.any(cross_points):
+            cross_points[np.random.randint(0, self.dimensions)] = True
+            
+        return np.where(cross_points, mutant, target)
+
+
     def run(self):
         raise NotImplementedError("Subclasses should implement this!")

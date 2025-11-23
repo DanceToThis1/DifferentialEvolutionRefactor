@@ -1,129 +1,116 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import random
 from scipy.stats import cauchy
-import pandas as pd
-import os
+import matplotlib.pyplot as plt
+from paper.base import DifferentialEvolutionOptimizer
 
-"""
-jade函数,实现JADE算法
-输入为待优化函数和相应的维度，每个维度的取值范围。
-输出为每次迭代中最优向量和最优向量对应的最优解。
-此函数在all_algo_test.py中被调用。
-"""
+class JADE(DifferentialEvolutionOptimizer):
+    """
+    JADE: Adaptive Differential Evolution with Optional External Archive
+    """
+    def __init__(self, obj_func, bounds, pop_size=100, iterations=1000, c=0.1, p=0.05):
+        super().__init__(obj_func, bounds, pop_size, iterations)
+        self.c = c  # 参数适应的学习率
+        self.p = p  # 选取前 p% 的最优个体作为变异基准
+        self.mean_cr = 0.5
+        self.mean_mut = 0.5
+        self.archive = [] # 外部存档
 
-
-def jade(fobj, bounds, popsize=100, its=1000, c=0.1):
-    dimensions = len(bounds)
-    pop = np.random.rand(popsize, dimensions)
-    min_b, max_b = np.asarray(bounds).T
-    diff = np.fabs(min_b - max_b)
-    population = min_b + pop * diff
-    population_new = np.zeros(popsize * dimensions).reshape(popsize, dimensions)
-    for i in range(len(population_new)):
-        population_new[i] = population[i]
-    mean_cr = 0.5
-    mean_mut = 0.5
-    a = []  # 定义一个新种群A初始化为空
-    for i in range(its):
-        s_mut = []
-        s_cr = []  # 存储成功的cr值，每代清空
-        population = list(population)
-        population.sort(key=fobj)
-        population = np.array(population)
-        best = population[0]
-        fitness_best = fobj(best)
-        fitness = np.asarray([fobj(ind) for ind in population])
-        for j in range(popsize):
-            p = 0.05 * popsize
-            idx_x_best_p = random.randint(0, int(p))
-            x_best_p = population[idx_x_best_p]
-            idxs = [idx for idx in range(popsize) if idx != j]
-            x_r1, x_r2 = population[np.random.choice(idxs, 2, replace=False)]
-            idx_x_r2 = random.randint(0, len(population) + len(a) - 3)
-            if idx_x_r2 >= (len(population) - 2):
-                x_r2 = a[idx_x_r2 - len(population) + 2]
-            mut = cauchy.rvs(loc=mean_mut, scale=0.1)  # 柯西分布生成随机数
-            while mut < 0 or mut > 1:
-                if mut < 0:
-                    mut = cauchy.rvs(loc=mean_mut, scale=0.1)
+    def run(self):
+        self.initialize_population()
+        
+        for i in range(self.iterations):
+            # 1. 种群排序：为了选出前 p% 的个体 (x_best_p)
+            # 原代码是用 obj_func 重新计算一遍来排序
+            # 直接利用已有的 self.fitness 进行排序，速度会快很多。
+            sorted_indices = np.argsort(self.fitness)
+            self.population = self.population[sorted_indices]
+            self.fitness = self.fitness[sorted_indices]
+            
+            # 更新当前全局最优（排序后第一个就是最优）
+            self.best_index = 0
+            self.best_vector = self.population[0]
+            
+            success_mut = []
+            success_cr = []
+            population_new = np.copy(self.population)
+            fitness_new = np.copy(self.fitness)
+            
+            # 2. 生成子代
+            for j in range(self.pop_size):
+                # 选择 p-best (前 p*pop_size 个体中随机选一个)
+                top_p_count = max(1, int(self.p * self.pop_size))
+                p_best_idx = random.randint(0, top_p_count - 1)
+                x_best_p = self.population[p_best_idx]
+                
+                # 生成自适应参数 CR 和 F (mut)
+                cr = np.clip(random.gauss(self.mean_cr, 0.1), 0, 1)
+                
+                # F 服从柯西分布，如果在 (0, 1] 区间外则重生成或截断
+                while True:
+                    mut = cauchy.rvs(loc=self.mean_mut, scale=0.1)
+                    if mut >= 1:
+                        mut = 1
+                        break
+                    if mut > 0:
+                        break
+                        
+                # 调用父类的通用策略
+                trial = self.strategy_current_to_pbest_1_bin_with_archive(
+                    j, x_best_p, mut, cr, self.archive
+                )
+                
+                # 选择
+                f_trial = self.obj_func(trial)
+                
+                if f_trial < self.fitness[j]:
+                    population_new[j] = trial
+                    fitness_new[j] = f_trial
+                    
+                    # 成功个体的参数记录下来用于更新
+                    success_cr.append(cr)
+                    success_mut.append(mut)
+                    
+                    # 将被淘汰的父代加入存档
+                    self.archive.append(self.population[j].copy())
                 else:
-                    mut = 1
-            mutant = population[j] + mut * (x_best_p - population[j]) + mut * (x_r1 - x_r2)
-            for mutant_i in range(len(mutant)):  # 变异向量越界处理
-                if mutant[mutant_i] < min_b[mutant_i]:
-                    mutant[mutant_i] = (population[j][mutant_i] + min_b[mutant_i]) / 2
-                    pass
-                elif mutant[mutant_i] > max_b[mutant_i]:
-                    mutant[mutant_i] = (population[j][mutant_i] + max_b[mutant_i]) / 2
-                    pass
-                pass
-            cr = np.clip(random.gauss(mean_cr, 0.1), 0, 1)
-            cross_points = np.random.rand(dimensions) < cr
-            cross_points[np.random.randint(0, dimensions)] = True
-            trial = np.where(cross_points, mutant, population[j])
-            fit = fobj(trial)
-            if fit < fitness[j]:
-                population_new[j] = trial
-                a.append(population[j])
-                s_cr.append(cr)
-                s_mut.append(mut)
-            else:
-                population_new[j] = population[j]
-        while len(a) > popsize:
-            index = random.randint(0, len(a) - 1)
-            a.pop(index)
-            pass
-        for k in range(len(population)):
-            population[k] = population_new[k]
-        if s_cr:
-            mean_cr = (1 - c) * mean_cr + c * np.mean(s_cr)
-            mean_mut = (1 - c) * mean_mut + c * (sum(ff ** 2 for ff in s_mut) / sum(s_mut))
-        # yield best, mean_mut, mean_cr, fitness_best
-        yield best, fitness_best
-        pass
-    pass
+                    population_new[j] = self.population[j]
+                    fitness_new[j] = self.fitness[j]
+            
+            # 3. 维护存档大小 (不能超过 pop_size)
+            while len(self.archive) > self.pop_size:
+                # 随机移除
+                remove_idx = random.randint(0, len(self.archive) - 1)
+                self.archive.pop(remove_idx)
+            
+            # 4. 更新种群
+            self.population = population_new
+            self.fitness = fitness_new
+            
+            # 5. 更新自适应参数 mean_cr 和 mean_mut
+            if len(success_cr) > 0:
+                self.mean_cr = (1 - self.c) * self.mean_cr + self.c * np.mean(success_cr)
+                # Lehmer mean for F
+                sum_f2 = sum(f**2 for f in success_mut)
+                sum_f = sum(success_mut)
+                if sum_f > 0: # 避免除零
+                    lehmer_mean = sum_f2 / sum_f
+                    self.mean_mut = (1 - self.c) * self.mean_mut + self.c * lehmer_mean
+            
+            yield self.best_vector, self.fitness[0]
 
-
-"""
-jade_test函数
-参数随迭代次数的变化情况
-使用时还需要改算法的返回值，注释掉现在的，使用被注释的那条。
-这个函数画ppt中的图用的，在此程序中没有被调用。
-"""
-
-
-def jade_test(fun, bounds, popsize=100, its=1000):
-    it = list(jade(fun, bounds, popsize=popsize, its=its))
-    print(it[-1])
-    x, mut, cr, f = zip(*it)
-    plt.plot(mut, label='F')
-    plt.plot(cr, label='CR')
-    plt.title('JADE ' + fun.__name__)
-    plt.legend()
-    plt.show()
-    pass
-
-
-"""
-jade_test_50函数
-输入为评价函数和与之对应的变量范围和最大迭代次数
-对函数进行50次优化，把每次得到的优化结果记录进csv文件中。
-这个函数在all_algo_test.py中被调用。
-"""
-
-
-def jade_test_50(fun, bounds, its):
+# 保持接口兼容
+def jade_test_50(fun, bounds, iterations):
     result = []
     for num in range(50):
-        it = list(jade(fun, bounds, popsize=100, its=its))
+        optimizer = JADE(fun, bounds, pop_size=100, iterations=iterations)
+        it = list(optimizer.run())
         result.append(it[-1][-1])
         print(num, result[-1])
-        pass
-    data = pd.DataFrame([['JADE', fun.__name__, its, i] for i in result])
-    data.to_csv(path1 + '/all_algorithm_test_data/data.csv', mode='a', header=False)
-    mean_result = np.mean(result)
-    std_result = np.std(result)
-    data_mean = pd.DataFrame([['JADE', fun.__name__, its, mean_result, std_result]])
-    data_mean.to_csv(path1 + '/all_algorithm_test_data/data.csv', mode='a', index=False, header=False)
-    pass
+    print(f"Mean: {np.mean(result)}")
+
+if __name__ == '__main__':
+    from functions import fun_sphere
+    temp_optimizer = JADE(fun_sphere, [(-100, 100)] * 30, pop_size=100, iterations=1000)
+    it = list(temp_optimizer.run())
+    print(it[-1][1])

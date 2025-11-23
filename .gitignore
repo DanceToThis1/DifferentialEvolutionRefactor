@@ -15,3 +15,5 @@ venv/
 
 # Generated Images
 image/
+
+temp_test.py
